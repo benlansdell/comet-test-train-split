@@ -17,7 +17,15 @@ def main(args):
 
     df = df[~pd.isna(df['SJID'])]
     df = df[~pd.isna(df['Disease'])]
-    df['disease_sheet_name'] = df['sheet name'].apply(lambda x: x.split(' ')[0])
+    if 'SheetName' in df.columns:
+        df = df[~pd.isna(df['SheetName'])]
+        df['Slide Scan File'] = df['Slide.Scan.File']
+        df = df[['SheetName', 'SJID', 'Slide Scan File', 'Disease']]
+        df['disease_sheet_name'] = df['SheetName'].apply(lambda x: x.split(' ')[0])
+        df = df.drop(columns = 'SheetName')
+        df['Slide Scan File'] = df['Slide Scan File'].apply(lambda x: str(int(x)) if not pd.isna(x) else x)
+    else:
+        df['disease_sheet_name'] = df['sheet name'].apply(lambda x: x.split(' ')[0])
     df['test'] = False
 
     splitter = StratifiedShuffleSplit(n_splits=1, test_size=args.test_size, random_state=SEED)
