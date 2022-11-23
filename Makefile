@@ -10,4 +10,4 @@ split:
 valsplit:
 		python src/testtrainsplit.py data/processed/comet_metadata.csv data/output/comet_metadata_trainvalsplit.csv
 
-all: ingress split
+all: ingress split valsplit

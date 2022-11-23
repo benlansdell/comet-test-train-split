@@ -11,7 +11,7 @@ parser.add_argument('output', help='Output csv file with test train assignments'
 parser.add_argument('--test_size', type=float, default=0.1, help='Fraction of data to assign to test group')
 parser.add_argument('--val_size', type=float, default=0.1, help='Fraction of data to assign to val group')
 
-args = parser.parse_args(['../data/processed/comet_metadata.csv', '../data/output/comet_metadata_split.csv'])
+args = parser.parse_args(['data/processed/comet_metadata.csv', 'data/output/comet_metadata_trainvalsplit.csv'])
 
 def main(args):
     df = pd.read_csv(args.input)
@@ -21,7 +21,7 @@ def main(args):
     if 'SheetName' in df.columns:
         df = df[~pd.isna(df['SheetName'])]
         df['Slide Scan File'] = df['Slide.Scan.File']
-        df = df[['SheetName', 'SJID', 'Slide Scan File', 'Disease']]
+        df = df[['SheetName', 'SJID', 'Slide Scan File', 'Disease', 'UID.Subject']]
         df['disease_sheet_name'] = df['SheetName'].apply(lambda x: x.split(' ')[0])
         df = df.drop(columns = 'SheetName')
         df['Slide Scan File'] = df['Slide Scan File'].apply(lambda x: str(int(x)) if not pd.isna(x) else x)
@@ -30,22 +30,28 @@ def main(args):
     df['val'] = False
     df['test'] = False
 
+    #Split by patient instead
+    df_uid_disease_sjid = df[['disease_sheet_name', 'UID.Subject']].drop_duplicates()
+
     splitter = StratifiedShuffleSplit(n_splits=1, test_size=args.test_size, random_state=SEED)
-    for train_index, test_index in splitter.split(df, df['disease_sheet_name']):
-        train_data = df.iloc[train_index]
-        test_data = df.iloc[test_index]
-        test_data['test'] = True
-        #df.iloc[test_index.astype(int), -1] = True
+    for train_index, test_index in splitter.split(df_uid_disease_sjid, df_uid_disease_sjid['disease_sheet_name']):
+        train_data = df_uid_disease_sjid.iloc[train_index]
+        test_data = df_uid_disease_sjid.iloc[test_index]
+
+        #train_patients = train_data['UID.Subject']
+        test_patients = test_data['UID.Subject']
+
+        df.loc[df['UID.Subject'].isin(test_patients), 'test'] = True
+
         if args.val_size > 0:
             val_splitter = StratifiedShuffleSplit(n_splits=1, test_size=args.val_size/(1-args.test_size), random_state=SEED)
-            for train_index_2, val_index in val_splitter.split(train_data, train_data['disease_sheet_name']):
+
+            for train_index_2, val_index in val_splitter.split(train_data, train_data['disease_sheet_name']):         
                 val_data = train_data.iloc[val_index]
-                train_data = train_data.iloc[train_index_2]
-                val_data['val'] = True
-                df = pd.concat([train_data, val_data, test_data])
+                val_patients = val_data['UID.Subject']
+                df.loc[df['UID.Subject'].isin(val_patients), 'val'] = True
         else:
-            test_data['val'] = True
-            df = pd.concat([train_data, test_data])
+            df.loc[df['UID.Subject'].isin(test_patients), 'val'] = True
 
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
     df.to_csv(args.output, index=False)
