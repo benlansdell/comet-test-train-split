@@ -54,6 +54,8 @@ def main(args):
             df.loc[df['UID.Subject'].isin(test_patients), 'val'] = True
 
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
+    #Drop duplicates by SJID and slide name
+    df = df.drop_duplicates(subset = ['Slide Scan File', 'SJID'])
     df.to_csv(args.output, index=False)
 
 if __name__ == '__main__':
