@@ -1,5 +1,5 @@
 ingress:
-		cp data/input/AllComet_metaData_slideFile_102222.csv data/processed/comet_metadata.csv
+		cp data/input/AllComet_metaData_12162022.csv data/processed/comet_metadata.csv
 
 ##Out of date spreadsheet.
 convert:
