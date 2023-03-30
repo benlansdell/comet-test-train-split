@@ -10,6 +10,7 @@ parser.add_argument('input', help='CSV file to compute test train split for')
 parser.add_argument('output', help='Output csv file with test train assignments')
 parser.add_argument('--test_size', type=float, default=0.1, help='Fraction of data to assign to test group')
 parser.add_argument('--val_size', type=float, default=0.1, help='Fraction of data to assign to val group')
+parser.add_argument('--n_folds', type=int, default=10, help='Number of splits to create')
 parser.add_argument('--onlysampleswslides', action = 'store_true', help='Whether to drop samples without histology slides')
 
 args = parser.parse_args(['data/processed/comet_metadata.csv', 'data/output/comet_metadata_trainvalsplit.csv'])
@@ -34,6 +35,8 @@ def main(args):
     if args.onlysampleswslides:
         df = df.dropna(subset = 'Slide Scan File')
 
+    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+
     #Split by patient instead
     df_uid_disease_sjid = df[['disease_sheet_name', 'UID.Subject']].drop_duplicates()
 
@@ -48,19 +51,23 @@ def main(args):
         df.loc[df['UID.Subject'].isin(test_patients), 'test'] = True
 
         if args.val_size > 0:
-            val_splitter = StratifiedShuffleSplit(n_splits=1, test_size=args.val_size/(1-args.test_size), random_state=SEED)
+            val_splitter = StratifiedShuffleSplit(n_splits=args.n_folds, test_size=args.val_size/(1-args.test_size), random_state=SEED)
 
-            for train_index_2, val_index in val_splitter.split(train_data, train_data['disease_sheet_name']):         
+            for idx, (train_index_2, val_index) in enumerate(val_splitter.split(train_data, train_data['disease_sheet_name'])):         
                 val_data = train_data.iloc[val_index]
                 val_patients = val_data['UID.Subject']
                 df.loc[df['UID.Subject'].isin(val_patients), 'val'] = True
+                df.loc[~df['UID.Subject'].isin(val_patients), 'val'] = False
+                #Drop duplicates by SJID and slide name
+                df_fold = df.drop_duplicates(subset = ['Slide Scan File', 'SJID'])
+                out_file = args.output.replace('.csv', f'_fold-{idx}.csv')
+                df_fold.to_csv(out_file, index=False)
+
         else:
             df.loc[df['UID.Subject'].isin(test_patients), 'val'] = True
-
-    os.makedirs(os.path.dirname(args.output), exist_ok=True)
-    #Drop duplicates by SJID and slide name
-    df = df.drop_duplicates(subset = ['Slide Scan File', 'SJID'])
-    df.to_csv(args.output, index=False)
+            #Drop duplicates by SJID and slide name
+            df = df.drop_duplicates(subset = ['Slide Scan File', 'SJID'])
+            df.to_csv(args.output, index=False)
 
 if __name__ == '__main__':
     args = parser.parse_args()
